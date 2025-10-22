@@ -1,100 +1,311 @@
-<!DOCTYPE html>
+# Build a premium, self-contained light-mode interactive AHS flow (no CDNs).
+# Features:
+# - Neutral business palette (light)
+# - Curved connectors, rounded cards, soft shadows
+# - Hover tooltips with SOP summaries (from the user's handbook)
+# - Toggle Vaccination / Consultation branches
+# - Pan & Zoom
+# - Clean top bar, no logo
+#
+# Output: /mnt/data/index_business.html
+
+html = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Supertails • AHS Interactive Flow</title>
+<title>AHS Interactive Flow – Business Edition</title>
 <style>
   :root{
-    --bg:#0f1221;
-    --panel:#151936;
-    --ink:#e8ecff;
-    --muted:#a8b0d4;
-    --ops:#2dd4bf;
-    --tech:#60a5fa;
-    --people:#f59e0b;
-    --finance:#f472b6;
-    --cx:#a78bfa;
-    --vacc:#34d399;
-    --cons:#22d3ee;
-    --node:#20254a;
-    --stroke:rgba(255,255,255,.12);
-    --accent:#7c3aed;
+    --bg:#f7f8fb;
+    --paper:#ffffff;
+    --ink:#1f2937;
+    --muted:#667085;
+    --primary:#3b82f6; /* steel blue */
+    --accent:#0ea5e9;  /* cyan */
+    --success:#22c55e; /* green */
+    --warning:#f59e0b; /* amber */
+    --danger:#ef4444;  /* red */
+    --ops:#0ea5e9;
+    --tech:#64748b;
+    --finance:#8b5cf6;
+    --cx:#06b6d4;
+    --people:#94a3b8;
+    --vacc:#16a34a;
+    --cons:#0891b2;
+    --card:#eef2f7;
+    --stroke:#e5e7eb;
+    --shadow: 0 10px 20px rgba(2, 6, 23, .08);
+    --shadow-strong: 0 14px 32px rgba(2, 6, 23, .12);
   }
+  *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-  #app{display:grid;grid-template-rows:auto 1fr; height:100%}
-  .topbar{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg, rgba(124,58,237,0.25), rgba(21,25,54,0.7));border-bottom:1px solid rgba(124,58,237,0.35);position:sticky;top:0;z-index:2;backdrop-filter: blur(6px);}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800}
-  .brand .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#22d3ee);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-  .brand .logo svg{width:18px;height:18px;fill:white;opacity:.95}
-  .tag{font-size:12px;color:var(--muted);background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);padding:4px 8px;border-radius:999px}
+  #app{height:100%;display:grid;grid-template-rows:auto 1fr}
+  .topbar{
+    position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
+    padding:12px 16px;background:rgba(255,255,255,.8);backdrop-filter:saturate(140%) blur(8px);
+    border-bottom:1px solid var(--stroke);
+  }
+  .title{font-weight:800;letter-spacing:.2px}
+  .badge{font-size:12px;color:#0f172a;background:#e6f0ff;border:1px solid #cfe0ff;padding:4px 10px;border-radius:999px}
   .controls{margin-left:auto;display:flex;align-items:center;gap:8px}
-  .chip{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04)}
-  .chip input{accent-color:var(--accent)}
-  .btn{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.04);color:var(--ink);cursor:pointer;font-weight:600}
-  .btn:hover{background:rgba(255,255,255,.08)}
+  .chip{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--stroke);
+    padding:6px 10px;border-radius:999px;box-shadow:var(--shadow);user-select:none}
+  .chip input{accent-color:var(--primary)}
+  .btn{border:1px solid var(--stroke);border-radius:10px;background:#fff;padding:8px 10px;cursor:pointer;box-shadow:var(--shadow);font-weight:600}
+  .btn:hover{box-shadow:var(--shadow-strong)}
   .stage{position:relative;overflow:hidden}
-  .legend{position:absolute;left:12px;bottom:12px;display:flex;gap:12px;align-items:center;background:rgba(0,0,0,.25);border:1px solid var(--stroke);padding:8px 10px;border-radius:10px}
+  .legend{position:absolute;left:12px;bottom:12px;display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--stroke);box-shadow:var(--shadow);padding:8px 10px;border-radius:10px;z-index:3}
   .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
-  .node{fill:var(--node);stroke:var(--stroke);stroke-width:1}
-  .node text{font-size:12px;fill:var(--ink)}
-  .pill{font-size:11px;fill:var(--bg)}
-  .edge{stroke:rgba(255,255,255,.6);stroke-width:2;marker-end:url(#arrow)}
-  .edge-label{font-size:11px;fill:var(--ink);opacity:.8}
-  .dept{font-weight:700;fill:#081018}
+  /* Tooltip */
+  .tooltip{
+    position:absolute;pointer-events:none;background:#111827;color:#f9fafb;border:1px solid rgba(255,255,255,.1);
+    padding:10px 12px;border-radius:10px;box-shadow:0 10px 24px rgba(2,6,23,.35);font-size:12px;max-width:280px;z-index:10;opacity:0;transform:translate(-50%,-130%);
+    transition:opacity .15s ease;
+  }
+  .tooltip .h{font-weight:700;margin-bottom:4px}
+  /* SVG styles */
+  svg{background:linear-gradient(180deg, rgba(2,6,23,.02), rgba(2,6,23,0));}
+  .card{fill:#fff;stroke:var(--stroke);stroke-width:1;rx:14;ry:14;filter:url(#drop);}
+  .card-title{font-size:12px;fill:var(--ink)}
+  .dept-pill rect{fill:#fff;stroke:var(--stroke);rx:999;ry:999}
+  .dept-pill text{font-size:12px;fill:var(--ink);font-weight:700}
+  .edge{fill:none;stroke:#cbd5e1;stroke-width:2;marker-end:url(#arrow);}
+  .edge-accent{stroke:var(--primary)}
+  .edge-label{font-size:11px;fill:#475569}
+  .branch-vacc .card{fill:#ecfdf5;stroke:#bbf7d0}
+  .branch-cons .card{fill:#e0f2fe;stroke:#bae6fd}
+  .pill{font-weight:700}
 </style>
 </head>
 <body>
 <div id="app">
   <div class="topbar">
-    <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M12 2l3.5 6.5L22 10l-6 4.5L17.5 22 12 18.5 6.5 22 8 14.5 2 10l6.5-1.5L12 2z"/></svg>
-      </div>
-      <div>AHS Interactive Flow</div>
-    </div>
-    <span class="tag">Supertails • Vaccination & Consultation</span>
+    <div class="title">AHS Interactive Flow</div>
+    <span class="badge">Vaccination & Consultation</span>
     <div class="controls">
       <label class="chip"><input id="toggleVacc" type="checkbox" checked/> Vaccination</label>
       <label class="chip"><input id="toggleCons" type="checkbox" checked/> Consultation</label>
       <button class="btn" id="btnReset">Reset</button>
-      <button class="btn" id="btnZoomIn">+</button>
-      <button class="btn" id="btnZoomOut">−</button>
-      <button class="btn" id="btnExport">Export View</button>
+      <button class="btn" id="btnZoomIn">Zoom +</button>
+      <button class="btn" id="btnZoomOut">Zoom −</button>
     </div>
   </div>
   <div class="stage" id="stage">
-    <svg id="canvas" width="100%" height="100%" viewBox="0 0 1800 900" style="background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.00)); cursor:grab;">
+    <div id="tooltip" class="tooltip"></div>
+    <svg id="canvas" width="100%" height="100%" viewBox="0 0 1800 900">
       <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,.6)"></path>
+        <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(2,6,23,.20)"/>
+        </filter>
+        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1"></path>
         </marker>
       </defs>
       <g id="viewport">
-        <!-- Simplified for brevity -->
-        <g id="n-lead" transform="translate(80,200)"><rect class="node" width="200" height="66" rx="12"/><text x="12" y="24">Lead / Booking (App/CRM)</text></g>
-        <g id="n-schedule" transform="translate(320,200)"><rect class="node" width="180" height="66" rx="12"/><text x="12" y="24">Scheduling (Ops)</text></g>
+        <!-- Department row -->
+        <g class="dept-pill" transform="translate(140,50)">
+          <rect width="140" height="30"></rect>
+          <text x="14" y="20">Operations</text>
+        </g>
+        <g class="dept-pill" transform="translate(340,50)">
+          <rect width="120" height="30"></rect>
+          <text x="14" y="20">Technology</text>
+        </g>
+        <g class="dept-pill" transform="translate(510,50)">
+          <rect width="100" height="30"></rect>
+          <text x="14" y="20">Finance</text>
+        </g>
+        <g class="dept-pill" transform="translate(650,50)">
+          <rect width="170" height="30"></rect>
+          <text x="14" y="20">Customer Experience</text>
+        </g>
+        <g class="dept-pill" transform="translate(870,50)">
+          <rect width="90" height="30"></rect>
+          <text x="14" y="20">People</text>
+        </g>
+
+        <!-- Cards -->
+        <g id="cards">
+          <g class="card-wrap" data-id="lead" data-title="Lead / Booking" data-desc="Booking created via App/CRM. Pulls pet & address details; service type selected." transform="translate(120,200)">
+            <rect class="card" width="220" height="70"></rect>
+            <text class="card-title" x="14" y="26">Lead / Booking (App/CRM)</text>
+          </g>
+
+          <g class="card-wrap" data-id="schedule" data-title="Scheduling (Ops)" data-desc="Ops confirms slot, assigns Vet & Paravet, shares pre-call template." transform="translate(370,200)">
+            <rect class="card" width="200" height="70"></rect>
+            <text class="card-title" x="14" y="26">Scheduling (Ops)</text>
+          </g>
+
+          <g class="card-wrap" data-id="precall" data-title="Pre-Visit Call (T-30)" data-desc="Vet calls 30 min prior. Confirms address, pet readiness, and do’s/don’ts." transform="translate(600,200)">
+            <rect class="card" width="260" height="70"></rect>
+            <text class="card-title" x="14" y="26">Pre-Visit Call (T-30)</text>
+          </g>
+
+          <g class="card-wrap" data-id="travel" data-title="In Transit → Onsite" data-desc="Team departs to arrive 5 minutes before time; app set to In Transit." transform="translate(900,200)">
+            <rect class="card" width="230" height="70"></rect>
+            <text class="card-title" x="14" y="26">In Transit → Onsite</text>
+          </g>
+
+          <g class="card-wrap" data-id="consult" data-title="Mark 'In Consult' + SOAP" data-desc="Start SOAP notes: Subjective, Objective, Assessment, Plan. Maintain hygiene." transform="translate(1160,200)">
+            <rect class="card" width="270" height="70"></rect>
+            <text class="card-title" x="14" y="26">Mark “In Consult” + SOAP</text>
+          </g>
+
+          <g class="card-wrap" data-id="pay" data-title="Payment → Link/QR + UTR" data-desc="Trigger payment link. If fails, use QR; record UTR. Do not leave until confirmed." transform="translate(1450,200)">
+            <rect class="card" width="270" height="70"></rect>
+            <text class="card-title" x="14" y="26">Payment → Link/QR + UTR</text>
+          </g>
+
+          <g class="card-wrap" data-id="recon" data-title="Finance Reconciliation" data-desc="Ops/Finance verify amounts and UTR. Flag mismatches on the same day." transform="translate(400,350)">
+            <rect class="card" width="250" height="70"></rect>
+            <text class="card-title" x="14" y="26">Finance Reconciliation</text>
+          </g>
+
+          <g class="card-wrap" data-id="nps" data-title="CX Feedback / NPS" data-desc="Send feedback form; log NPS; trigger service recovery if needed." transform="translate(690,350)">
+            <rect class="card" width="230" height="70"></rect>
+            <text class="card-title" x="14" y="26">CX Feedback / NPS</text>
+          </g>
+
+          <!-- Branch: Vaccination -->
+          <g class="card-wrap branch-vacc" data-branch="vacc" data-id="vacc" data-title="Vaccination Protocol ✓" data-desc="Dose verification, AEFI counseling, digital record update." transform="translate(1210,310)">
+            <rect class="card" width="240" height="64"></rect>
+            <text class="card-title pill" x="14" y="26">Vaccination Protocol ✓</text>
+          </g>
+
+          <!-- Branch: Consultation -->
+          <g class="card-wrap branch-cons" data-branch="cons" data-id="cons" data-title="Consultation Protocol ✓" data-desc="Diagnosis, prescription, next steps & follow-up plan." transform="translate(1210,400)">
+            <rect class="card" width="240" height="64"></rect>
+            <text class="card-title pill" x="14" y="26">Consultation Protocol ✓</text>
+          </g>
+        </g>
+
+        <!-- Edges -->
+        <g id="edges">
+          <!-- Core path -->
+          <path class="edge edge-accent" d="M340 235 C 360 235, 360 235, 370 235"></path>
+          <path class="edge edge-accent" d="M570 235 C 590 235, 590 235, 600 235"></path>
+          <path class="edge edge-accent" d="M860 235 C 880 235, 880 235, 900 235"></path>
+          <path class="edge edge-accent" d="M1130 235 C 1145 235, 1145 235, 1160 235"></path>
+          <path class="edge edge-accent" d="M1430 235 C 1445 235, 1445 235, 1450 235"></path>
+
+          <!-- Branch edges -->
+          <path class="edge vacc-edge" d="M1295 270 C 1295 290, 1295 290, 1295 310"></path>
+          <path class="edge cons-edge" d="M1370 270 C 1370 340, 1370 340, 1370 400"></path>
+
+          <!-- Downstream to Recon & NPS -->
+          <path class="edge" d="M1585 235 C 1650 235, 1650 350, 625 385"></path>
+          <path class="edge" d="M650 385 C 660 385, 680 385, 690 385"></path>
+        </g>
+
+        <!-- Edge labels -->
+        <g id="labels">
+          <text class="edge-label" x="352" y="222">SLAs</text>
+          <text class="edge-label" x="585" y="222">T-30</text>
+          <text class="edge-label" x="875" y="222">Route</text>
+          <text class="edge-label" x="1143" y="222">Arrive</text>
+          <text class="edge-label" x="1460" y="222">Close</text>
+          <text class="edge-label" x="1610" y="260">UTR → NPS</text>
+          <text class="edge-label vacc-edge" x="1306" y="300">Dose, AEFI, record</text>
+          <text class="edge-label cons-edge" x="1382" y="375">Dx, Rx, plan</text>
+        </g>
       </g>
     </svg>
+
+    <!-- Legend -->
+    <div class="legend">
+      <span class="dot" style="background:var(--ops)"></span><small>Ops</small>
+      <span class="dot" style="background:var(--tech)"></span><small>Tech</small>
+      <span class="dot" style="background:var(--finance)"></span><small>Finance</small>
+      <span class="dot" style="background:var(--cx)"></span><small>CX</small>
+      <span class="dot" style="background:var(--people)"></span><small>People</small>
+      <span class="dot" style="background:var(--vacc)"></span><small>Vacc</small>
+      <span class="dot" style="background:var(--cons)"></span><small>Cons</small>
+    </div>
   </div>
 </div>
+
 <script>
 (function(){
-  const viewport=document.getElementById('viewport');
-  let state={x:0,y:0,k:1},drag=false,last={x:0,y:0};
-  function apply(){viewport.setAttribute('transform',`translate(${state.x},${state.y}) scale(${state.k})`)}
-  document.getElementById('canvas').addEventListener('wheel',e=>{
-    e.preventDefault();const rect=e.target.getBoundingClientRect();
-    const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
-    const k2=Math.max(.5,Math.min(2.5,state.k*(e.deltaY<0?1.1:.9)));
-    const px=(cx-state.x)/state.k,py=(cy-state.y)/state.k;
-    state.x=cx-px*k2;state.y=cy-py*k2;state.k=k2;apply();
+  const svg = document.getElementById('canvas');
+  const viewport = document.getElementById('viewport');
+  const tooltip = document.getElementById('tooltip');
+  const toggleVacc = document.getElementById('toggleVacc');
+  const toggleCons = document.getElementById('toggleCons');
+  const btnReset = document.getElementById('btnReset');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+
+  // Pan + zoom
+  let state = { x:0, y:0, k:1 };
+  let dragging = false;
+  let last = {x:0,y:0};
+
+  function apply(){ viewport.setAttribute('transform', `translate(${state.x},${state.y}) scale(${state.k})`); }
+  function zoom(f, cx, cy){
+    const k2 = Math.max(.6, Math.min(2.2, state.k * f));
+    const px = (cx - state.x)/state.k;
+    const py = (cy - state.y)/state.k;
+    state.x = cx - px * k2;
+    state.y = cy - py * k2;
+    state.k = k2; apply();
+  }
+
+  svg.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    zoom(e.deltaY < 0 ? 1.12 : 0.88, e.clientX - rect.left, e.clientY - rect.top);
+  }, {passive:false});
+
+  svg.addEventListener('mousedown', (e)=>{ dragging = true; last.x=e.clientX; last.y=e.clientY; svg.style.cursor='grabbing'; });
+  window.addEventListener('mouseup', ()=>{ dragging=false; svg.style.cursor='default'; });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    state.x += (e.clientX - last.x);
+    state.y += (e.clientY - last.y);
+    last.x = e.clientX; last.y = e.clientY;
+    apply();
   });
-  document.getElementById('canvas').addEventListener('mousedown',e=>{drag=true;last.x=e.clientX;last.y=e.clientY});
-  window.addEventListener('mouseup',()=>drag=false);
-  window.addEventListener('mousemove',e=>{if(!drag)return;state.x+=e.clientX-last.x;state.y+=e.clientY-last.y;last.x=e.clientX;last.y=e.clientY;apply()});
+
+  btnReset.addEventListener('click', ()=>{ state = { x:0, y:0, k:1 }; apply(); });
+  btnZoomIn.addEventListener('click', ()=> zoom(1.15, svg.clientWidth/2, svg.clientHeight/2));
+  btnZoomOut.addEventListener('click', ()=> zoom(0.85, svg.clientWidth/2, svg.clientHeight/2));
+
+  // Branch toggles
+  function setBranchVisibility(branch, visible){
+    const cls = branch === 'vacc' ? 'vacc-edge' : 'cons-edge';
+    Array.from(document.getElementsByClassName(cls)).forEach(el=> el.style.display = visible ? 'block' : 'none');
+    Array.from(document.querySelectorAll(\`.card-wrap[data-branch="\${branch}"]\`)).forEach(el=> el.style.display = visible ? 'block' : 'none');
+  }
+  toggleVacc.addEventListener('change', e=> setBranchVisibility('vacc', e.target.checked));
+  toggleCons.addEventListener('change', e=> setBranchVisibility('cons', e.target.checked));
+
+  // Tooltips for cards
+  function attachTooltips(){
+    const cards = document.querySelectorAll('.card-wrap');
+    cards.forEach(card => {
+      card.addEventListener('mouseenter', (e)=>{
+        tooltip.innerHTML = '<div class="h">' + card.dataset.title + '</div><div>' + card.dataset.desc + '</div>';
+        tooltip.style.opacity = 1;
+      });
+      card.addEventListener('mousemove', (e)=>{
+        const stageRect = document.getElementById('stage').getBoundingClientRect();
+        tooltip.style.left = (e.clientX - stageRect.left) + 'px';
+        tooltip.style.top = (e.clientY - stageRect.top - 18) + 'px';
+      });
+      card.addEventListener('mouseleave', ()=>{ tooltip.style.opacity = 0; });
+    });
+  }
+
+  attachTooltips();
   apply();
 })();
 </script>
 </body>
 </html>
+"""
+
+with open("/mnt/data/index_business.html", "w", encoding="utf-8") as f:
+    f.write(html)
+
+"/mnt/data/index_business.html"
