@@ -1,222 +1,310 @@
+# Create a fully self-contained interactive HTML (no external CDNs) using inline SVG + vanilla JS:
+# - Dark navy theme with Supertails-styled header
+# - Pan (drag) + Zoom (wheel/+/- buttons)
+# - Toggle Vaccination / Consultation branches
+# - Export JSON of current pan/zoom state
+# Also create a README.md with instructions.
 
-<!DOCTYPE html>
+index_html = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>AHS – At Home Care Service • Interactive Flow</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Fonts -->
-  <link href="https://unpkg.com/@fontsource-variable/inter@5.0.21/index.css" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#0f1221;
-      --panel:#151936;
-      --ink:#e8ecff;
-      --muted:#a8b0d4;
-      --ops:#2dd4bf;        /* teal */
-      --tech:#60a5fa;       /* blue */
-      --people:#f59e0b;     /* amber */
-      --finance:#f472b6;    /* pink */
-      --cx:#a78bfa;         /* violet */
-      --vacc:#34d399;       /* emerald */
-      --cons:#22d3ee;       /* cyan */
-      --accent:#7c3aed;     /* purple */
-    }
-    html,body,#root{height:100%; margin:0;}
-    body{background:var(--bg); color:var(--ink); font-family:"InterVariable", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";}
-    .app{
-      height:100%;
-      display:grid;
-      grid-template-rows:auto 1fr;
-      gap:8px;
-    }
-    .topbar{
-      display:flex; align-items:center; gap:12px; padding:12px 16px;
-      background: linear-gradient(180deg, rgba(124,58,237,0.25), rgba(21,25,54,0.7));
-      border-bottom:1px solid rgba(124,58,237,0.35);
-      backdrop-filter: blur(6px);
-      position:sticky; top:0; z-index:10;
-    }
-    .title{
-      font-weight:700; letter-spacing:.2px;
-    }
-    .tag{
-      font-size:12px; color:var(--muted); background:rgba(124,58,237,.2); border:1px solid rgba(124,58,237,.4);
-      padding:4px 8px; border-radius:999px;
-    }
-    .controls{margin-left:auto; display:flex; align-items:center; gap:10px;}
-    .chip{
-      display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
-      padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.15);
-      background:rgba(255,255,255,.04);
-      transition:.2s ease;
-    }
-    .chip input{accent-color:var(--accent);}
-    .chip:hover{background:rgba(255,255,255,.08);}
-    .legend{display:flex; gap:8px; align-items:center; margin-left:8px;}
-    .dot{width:10px; height:10px; border-radius:50%;}
-    .panel{
-      position:absolute; top:70px; right:16px; z-index:5;
-      background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:14px;
-      padding:10px; display:flex; flex-direction:column; gap:8px;
-      box-shadow: 0 8px 28px rgba(0,0,0,.35);
-    }
-    .panel h4{margin:0 0 4px 0; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em}
-    .btn{
-      border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.04); color:var(--ink);
-      cursor:pointer; font-weight:600;
-    }
-    .btn:hover{background:rgba(255,255,255,.08)}
-    .react-flow__attribution{display:none;}
-  </style>
-  <!-- React & ReactDOM -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- React Flow -->
-  <link rel="stylesheet" href="https://unpkg.com/reactflow@11.10.4/dist/style.css" />
-  <script src="https://unpkg.com/reactflow@11.10.4/dist/react-flow.min.js"></script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Supertails • AHS Interactive Flow</title>
+<style>
+  :root{
+    --bg:#0f1221;
+    --panel:#151936;
+    --ink:#e8ecff;
+    --muted:#a8b0d4;
+    --ops:#2dd4bf;
+    --tech:#60a5fa;
+    --people:#f59e0b;
+    --finance:#f472b6;
+    --cx:#a78bfa;
+    --vacc:#34d399;
+    --cons:#22d3ee;
+    --node:#20254a;
+    --stroke:rgba(255,255,255,.12);
+    --accent:#7c3aed;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  #app{display:grid;grid-template-rows:auto 1fr; height:100%}
+  .topbar{
+    display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg, rgba(124,58,237,0.25), rgba(21,25,54,0.7));
+    border-bottom:1px solid rgba(124,58,237,0.35);
+    position:sticky;top:0;z-index:2;backdrop-filter: blur(6px);
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+  .brand .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#22d3ee);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .brand .logo svg{width:18px;height:18px;fill:white;opacity:.95}
+  .tag{font-size:12px;color:var(--muted);background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);padding:4px 8px;border-radius:999px}
+  .controls{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04)}
+  .chip input{accent-color:var(--accent)}
+  .btn{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.04);color:var(--ink);cursor:pointer;font-weight:600}
+  .btn:hover{background:rgba(255,255,255,.08)}
+  .stage{position:relative;overflow:hidden}
+  .hud{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:1}
+  .legend{position:absolute;left:12px;bottom:12px;display:flex;gap:12px;align-items:center;background:rgba(0,0,0,.25);border:1px solid var(--stroke);padding:8px 10px;border-radius:10px}
+  .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
+  /* Node styles rendered inside SVG via CSS classes */
+  .node{fill:var(--node);stroke:var(--stroke);stroke-width:1}
+  .node text{font-size:12px;fill:var(--ink)}
+  .pill{font-size:11px;fill:var(--bg)}
+  .edge{stroke:rgba(255,255,255,.6);stroke-width:2;marker-end:url(#arrow)}
+  .edge-label{font-size:11px;fill:var(--ink);opacity:.8}
+  .dept{font-weight:700;fill:#081018}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/javascript">
-  const { createElement: h, useState, useMemo, useCallback } = React;
-  const { createRoot } = ReactDOM;
-  const {
-    ReactFlow, Background, Controls, MiniMap,
-    useNodesState, useEdgesState, MarkerType
-  } = ReactFlow;
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3.5 6.5L22 10l-6 4.5L17.5 22 12 18.5 6.5 22 8 14.5 2 10l6.5-1.5L12 2z"/></svg>
+      </div>
+      <div>AHS Interactive Flow</div>
+    </div>
+    <span class="tag">Supertails • Vaccination & Consultation</span>
+    <div class="controls">
+      <label class="chip"><input id="toggleVacc" type="checkbox" checked/> Vaccination</label>
+      <label class="chip"><input id="toggleCons" type="checkbox" checked/> Consultation</label>
+      <button class="btn" id="btnReset">Reset</button>
+      <button class="btn" id="btnZoomIn">+</button>
+      <button class="btn" id="btnZoomOut">−</button>
+      <button class="btn" id="btnExport">Export View</button>
+    </div>
+  </div>
+  <div class="stage" id="stage">
+    <div class="hud"></div>
+    <svg id="canvas" width="100%" height="100%" viewBox="0 0 1800 900" style="background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.00)); cursor:grab;">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,.6)"></path>
+        </marker>
+        <filter id="soft">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,.35)"/>
+        </filter>
+      </defs>
+      <!-- Zoomable container -->
+      <g id="viewport" filter="url(#soft)">
+        <!-- Department pills -->
+        <g transform="translate(80,40)">
+          <rect rx="10" ry="10" width="180" height="32" fill="var(--ops)"></rect>
+          <text class="dept" x="14" y="21">Operations</text>
+        </g>
+        <g transform="translate(300,40)">
+          <rect rx="10" ry="10" width="180" height="32" fill="var(--tech)"></rect>
+          <text class="dept" x="14" y="21">Technology</text>
+        </g>
+        <g transform="translate(520,40)">
+          <rect rx="10" ry="10" width="180" height="32" fill="var(--finance)"></rect>
+          <text class="dept" x="14" y="21">Finance</text>
+        </g>
+        <g transform="translate(740,40)">
+          <rect rx="10" ry="10" width="220" height="32" fill="var(--cx)"></rect>
+          <text class="dept" x="14" y="21">Customer Experience</text>
+        </g>
+        <g transform="translate(1000,40)">
+          <rect rx="10" ry="10" width="140" height="32" fill="var(--people)"></rect>
+          <text class="dept" x="14" y="21">People</text>
+        </g>
 
-  // Base nodes (departments)
-  const deptNodes = [
-    { id: 'ops', position: { x: 0, y: 0 }, data: { label: 'Operations' }, style: { background: 'var(--ops)', color:'#081018', fontWeight:700 }, type: 'input' },
-    { id: 'tech', position: { x: 280, y: 0 }, data: { label: 'Technology' }, style: { background: 'var(--tech)', color:'#081018', fontWeight:700 } },
-    { id: 'finance', position: { x: 560, y: 0 }, data: { label: 'Finance' }, style: { background: 'var(--finance)', color:'#081018', fontWeight:700 } },
-    { id: 'cx', position: { x: 840, y: 0 }, data: { label: 'Customer Experience' }, style: { background: 'var(--cx)', color:'#081018', fontWeight:700 } },
-    { id: 'people', position: { x: 1120, y: 0 }, data: { label: 'People' }, style: { background: 'var(--people)', color:'#081018', fontWeight:700 }, type: 'output' },
-  ];
+        <!-- Core nodes row -->
+        <g id="nodes">
+          <!-- helper function is emulated by manual placement -->
+          <!-- Booking -->
+          <g id="n-lead" transform="translate(80,200)">
+            <rect class="node" width="200" height="66" rx="12"/><text x="12" y="24">Lead / Booking (App/CRM)</text>
+          </g>
+          <g id="n-schedule" transform="translate(320,200)">
+            <rect class="node" width="180" height="66" rx="12"/><text x="12" y="24">Scheduling (Ops)</text>
+          </g>
+          <g id="n-precall" transform="translate(540,200)">
+            <rect class="node" width="220" height="66" rx="12"/><text x="12" y="24">Pre-Visit Call (T-30)</text>
+          </g>
+          <g id="n-travel" transform="translate(800,200)">
+            <rect class="node" width="200" height="66" rx="12"/><text x="12" y="24">In Transit → Onsite</text>
+          </g>
+          <g id="n-inconsult" transform="translate(1040,200)">
+            <rect class="node" width="240" height="66" rx="12"/><text x="12" y="24">Mark “In Consult” + SOAP</text>
+          </g>
+          <g id="n-payment" transform="translate(1320,200)">
+            <rect class="node" width="240" height="66" rx="12"/><text x="12" y="24">Payment → Link/QR + UTR</text>
+          </g>
+          <g id="n-recon" transform="translate(80,340)">
+            <rect class="node" width="240" height="66" rx="12"/><text x="12" y="24">Finance Reconciliation</text>
+          </g>
+          <g id="n-feedback" transform="translate(360,340)">
+            <rect class="node" width="220" height="66" rx="12"/><text x="12" y="24">CX Feedback / NPS</text>
+          </g>
 
-  // Operational steps (shared)
-  const baseSteps = [
-    { id: 'lead', position: { x: 0, y: 150 }, data: { label: 'Lead / Booking (App/CRM)' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'schedule', position: { x: 240, y: 150 }, data: { label: 'Scheduling (Ops)' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'precall', position: { x: 480, y: 150 }, data: { label: 'Pre-Visit Call (30 min)' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'travel', position: { x: 720, y: 150 }, data: { label: 'In Transit → Onsite' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'inconsult', position: { x: 960, y: 150 }, data: { label: 'Mark “In Consult” + SOAP' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'payment', position: { x: 1200, y: 150 }, data: { label: 'Payment → Link/QR + UTR' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'recon', position: { x: 1440, y: 150 }, data: { label: 'Finance Reconciliation' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-    { id: 'feedback', position: { x: 1680, y: 150 }, data: { label: 'CX Feedback / NPS' }, style: { background:'#20254a', color:'#e8ecff', border:'1px solid rgba(255,255,255,.08)' } },
-  ];
+          <!-- Vaccination branch -->
+          <g id="b-vacc" transform="translate(1040,300)">
+            <rect class="node" width="220" height="60" rx="12" style="fill:var(--vacc)"/><text class="pill" x="12" y="24">Vaccination Protocol ✓</text>
+          </g>
 
-  // Branch nodes for service type
-  const vaccNodes = [
-    { id: 'vacc', position: { x: 960, y: 270 }, data: { label: 'Vaccination Protocol ✓' }, style: { background:'var(--vacc)', color:'#05140e', fontWeight:700 } },
-  ];
-  const consNodes = [
-    { id: 'cons', position: { x: 960, y: 270 }, data: { label: 'Consultation Protocol ✓' }, style: { background:'var(--cons)', color:'#041216', fontWeight:700 } },
-  ];
+          <!-- Consultation branch -->
+          <g id="b-cons" transform="translate(1040,380)">
+            <rect class="node" width="220" height="60" rx="12" style="fill:var(--cons)"/><text class="pill" x="12" y="24">Consultation Protocol ✓</text>
+          </g>
+        </g>
 
-  // Helper to create edges
-  function edge(id, s, t, label, color='rgba(255,255,255,.6)'){
-    return {
-      id, source: s, target: t,
-      label, style: { stroke: color }, labelStyle: { fill:'#e8ecff', fontWeight:600, fontSize:12 },
-      animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color }
-    }
+        <!-- Edges -->
+        <g id="edges">
+          <path class="edge" d="M280 233 L320 233"></path>
+          <path class="edge" d="M500 233 L540 233"></path>
+          <path class="edge" d="M760 233 L800 233"></path>
+          <path class="edge" d="M1000 233 L1040 233"></path>
+          <path class="edge" d="M1280 233 L1320 233"></path>
+          <path class="edge" d="M1560 233 L1700 233 1700 373 320 373"></path>
+          <path class="edge" d="M320 373 L360 373"></path>
+
+          <!-- Branch edges -->
+          <path class="edge vacc-edge" d="M1160 266 L1160 300"></path>
+          <path class="edge cons-edge" d="M1200 266 L1200 380"></path>
+        </g>
+
+        <!-- Edge labels -->
+        <g id="labels">
+          <text class="edge-label" x="300" y="220">SLAs</text>
+          <text class="edge-label" x="520" y="220">T-30</text>
+          <text class="edge-label" x="780" y="220">Route</text>
+          <text class="edge-label" x="1020" y="220">Arrive</text>
+          <text class="edge-label" x="1300" y="220">Close</text>
+          <text class="edge-label" x="1580" y="220">UTR → NPS</text>
+          <text class="edge-label vacc-edge" x="1168" y="292">Dose, AEFI, record</text>
+          <text class="edge-label cons-edge" x="1208" y="356">Dx, Rx, plan</text>
+        </g>
+      </g>
+    </svg>
+
+    <!-- Legend -->
+    <div class="legend">
+      <span class="dot" style="background:var(--ops)"></span><small>Ops</small>
+      <span class="dot" style="background:var(--tech)"></span><small>Tech</small>
+      <span class="dot" style="background:var(--finance)"></span><small>Finance</small>
+      <span class="dot" style="background:var(--cx)"></span><small>CX</small>
+      <span class="dot" style="background:var(--people)"></span><small>People</small>
+      <span class="dot" style="background:var(--vacc)"></span><small>Vacc</small>
+      <span class="dot" style="background:var(--cons)"></span><small>Cons</small>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const svg = document.getElementById('canvas');
+  const viewport = document.getElementById('viewport');
+  const stage = document.getElementById('stage');
+  const toggleVacc = document.getElementById('toggleVacc');
+  const toggleCons = document.getElementById('toggleCons');
+  const btnReset = document.getElementById('btnReset');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnExport = document.getElementById('btnExport');
+
+  // Pan + zoom state
+  let state = { x:0, y:0, k:1 };
+  let dragging = false;
+  let last = {x:0, y:0};
+
+  function apply(){
+    viewport.setAttribute('transform', `translate(${state.x},${state.y}) scale(${state.k})`);
+  }
+  function zoom(f, cx, cy){
+    // Zoom about pointer
+    const k2 = Math.max(.4, Math.min(2.5, state.k * f));
+    const px = (cx - state.x)/state.k;
+    const py = (cy - state.y)/state.k;
+    state.x = cx - px * k2;
+    state.y = cy - py * k2;
+    state.k = k2;
+    apply();
   }
 
-  // Department edges
-  const deptEdges = [
-    edge('e1', 'ops', 'tech', 'App status + APIs', 'var(--tech)'),
-    edge('e2', 'tech', 'finance', 'Payment events', 'var(--finance)'),
-    edge('e3', 'finance', 'cx', 'Refunds/NPS linkage', 'var(--cx)'),
-    edge('e4', 'cx', 'people', 'Feedback → Training', 'var(--people)'),
-    edge('e5', 'people', 'ops', 'Roster & SOP', 'var(--ops)'),
-  ];
+  svg.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    zoom(e.deltaY < 0 ? 1.1 : 0.9, cx, cy);
+  }, {passive:false});
 
-  // Base operational edges
-  const baseEdges = [
-    edge('b1','lead','schedule','SLAs'),
-    edge('b2','schedule','precall','T-30'),
-    edge('b3','precall','travel','Route'),
-    edge('b4','travel','inconsult','Arrive'),
-    edge('b5','inconsult','payment','Close'),
-    edge('b6','payment','recon','UTR'),
-    edge('b7','recon','feedback','NPS'),
-  ];
+  svg.addEventListener('mousedown', (e)=>{
+    dragging = true; last.x = e.clientX; last.y = e.clientY;
+    svg.style.cursor='grabbing';
+  });
+  window.addEventListener('mouseup', ()=>{ dragging=false; svg.style.cursor='grab'; });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    state.x += (e.clientX - last.x);
+    state.y += (e.clientY - last.y);
+    last.x = e.clientX; last.y = e.clientY;
+    apply();
+  });
 
-  function App(){
-    const [showVacc, setShowVacc] = React.useState(true);
-    const [showCons, setShowCons] = React.useState(true);
+  btnReset.addEventListener('click', ()=>{ state={x:0,y:0,k:1}; apply(); });
+  btnZoomIn.addEventListener('click', ()=> zoom(1.15, svg.clientWidth/2, svg.clientHeight/2));
+  btnZoomOut.addEventListener('click', ()=> zoom(0.85, svg.clientWidth/2, svg.clientHeight/2));
+  btnExport.addEventListener('click', ()=>{
+    const data = { view: state, ts: Date.now(), version: 'svg-1.0' };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='ahs-flow-view.json'; a.click();
+    URL.revokeObjectURL(url);
+  });
 
-    const nodes = useMemo(()=>{
-      const list = [...deptNodes, ...baseSteps];
-      if(showVacc) list.push(...vaccNodes);
-      if(showCons) list.push(...consNodes);
-      return list.map(n => ({ ...n, draggable: false }));
-    }, [showVacc, showCons]);
-
-    const edges = useMemo(()=>{
-      const list = [...deptEdges, ...baseEdges];
-      if(showVacc) list.push(edge('sv','inconsult','vacc','Dose, AEFI, records','var(--vacc)'));
-      if(showCons) list.push(edge('sc','inconsult','cons','Dx, Rx, plan','var(--cons)'));
-      return list;
-    }, [showVacc, showCons]);
-
-    const onReset = useCallback(()=>{
-      location.reload();
-    },[]);
-
-    const onExport = useCallback(()=>{
-      // simple PNG export via HTML2Canvas would require extra CDN; provide JSON instead
-      const data = { nodes, edges, ts: Date.now(), version: '1.0' };
-      const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'ahs-flow-export.json'; a.click();
-      URL.revokeObjectURL(url);
-    },[nodes,edges]);
-
-    return h('div', { className:'app' },
-      h('div', { className:'topbar' },
-        h('div', { className:'title' }, 'AHS – At Home Care Service • Interactive Flow'),
-        h('span', { className:'tag' }, 'Vaccination & Consultation'),
-        h('div', { className:'legend' },
-          h('span', { className:'dot', style:{ background:'var(--ops)' }}), h('small', null, 'Ops'),
-          h('span', { className:'dot', style:{ background:'var(--tech)' }}), h('small', null, 'Tech'),
-          h('span', { className:'dot', style:{ background:'var(--finance)' }}), h('small', null, 'Finance'),
-          h('span', { className:'dot', style:{ background:'var(--cx)' }}), h('small', null, 'CX'),
-          h('span', { className:'dot', style:{ background:'var(--people)' }}), h('small', null, 'People'),
-        ),
-        h('div', { className:'controls' },
-          h('label', { className:'chip' },
-            h('input', { type:'checkbox', checked: showVacc, onChange: e=>setShowVacc(e.target.checked) }),
-            h('span', null, 'Vaccination Branch')
-          ),
-          h('label', { className:'chip' },
-            h('input', { type:'checkbox', checked: showCons, onChange: e=>setShowCons(e.target.checked) }),
-            h('span', null, 'Consultation Branch')
-          )
-        ),
-      ),
-      h('div', { style:{ position:'relative', height:'100%' } },
-        h('div', { className:'panel' },
-          h('h4', null, 'Actions'),
-          h('button', { className:'btn', onClick:onReset }, 'Reset View'),
-          h('button', { className:'btn', onClick:onExport }, 'Export JSON')
-        ),
-        h(ReactFlow, {
-          nodes, edges, fitView: true, proOptions:{ hideAttribution: true }
-        },
-          h(Background, { variant:'lines' }),
-          h(Controls, null),
-          h(MiniMap, { pannable:true, zoomable:true })
-        )
-      )
-    );
+  function setVisibility(cls, visible){
+    Array.from(document.getElementsByClassName(cls)).forEach(el=>{
+      el.style.display = visible ? 'block' : 'none';
+    });
+    // Also toggle the nodes themselves
+    const nodeId = cls === 'vacc-edge' ? 'b-vacc' : 'b-cons';
+    const node = document.getElementById(nodeId);
+    if(node) node.style.display = visible ? 'block' : 'none';
   }
 
-  createRoot(document.getElementById('root')).render(h(App));
-  </script>
+  toggleVacc.addEventListener('change', e=> setVisibility('vacc-edge', e.target.checked));
+  toggleCons.addEventListener('change', e=> setVisibility('cons-edge', e.target.checked));
+
+  // Initial apply
+  apply();
+})();
+</script>
 </body>
 </html>
+"""
+
+readme = r"""# Supertails • AHS Interactive Flow (Self-contained)
+
+This is a **self-contained** interactive flow diagram for Supertails **At Home Services** (Vaccination & Consultation).  
+No external CDNs or dependencies — works offline and on GitHub Pages.
+
+## Live (after upload)
+- If this file is named `index.html` at the repo root:
+  `https://navpreetslovespets-oss.github.io/Supertails/`
+
+## Interactions
+- **Pan:** click & drag
+- **Zoom:** mouse wheel or +/- buttons
+- **Toggle:** Vaccination / Consultation branches (top right)
+- **Export View:** downloads current pan/zoom JSON
+
+## Editing
+- Open `index.html` and adjust labels, colors, or node positions (look for the `<g id="n-...">` groups).
+- To add more nodes, duplicate a node `<g>` block and adjust its `transform="translate(x,y)"`.
+
+## Notes
+- This version uses inline **SVG + vanilla JS** for reliability on GitHub Pages.
+- If you want a React/ReactFlow version later, it can be added as a second page.
+"""
+
+with open("/mnt/data/index.html", "w", encoding="utf-8") as f:
+    f.write(index_html)
+
+with open("/mnt/data/README.md", "w", encoding="utf-8") as f:
+    f.write(readme)
+
+"/mnt/data/index.html", "/mnt/data/README.md"
